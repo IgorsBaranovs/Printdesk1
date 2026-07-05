@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang='ru'>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0'>
+<title>PrintDesk</title>
+<link rel='manifest' href='manifest.json'>
+<style>
+body{font-family:Arial;background:#111;color:#fff;padding:12px}
+input,select,button{width:100%;padding:10px;margin:6px 0}
+.tab{display:none}
+.tab.active{display:block}
+</style>
+</head>
+<body>
+
+<h2>🖨 PrintDesk</h2>
+
+<nav>
+<button onclick="show('new')">Новый</button>
+<button onclick="show('history')">История</button>
+</nav>
+
+<div id="new" class="tab active">
+<input id="name" placeholder="Название">
+<input id="weight" type="number" placeholder="Вес (г)">
+<input id="time" type="number" placeholder="Время (ч)">
+<input id="price" type="number" placeholder="€/кВт⋅ч">
+<button onclick="calc()">Рассчитать</button>
+<div id="res"></div>
+<button onclick="save()">Сохранить</button>
+</div>
+
+<div id="history" class="tab"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

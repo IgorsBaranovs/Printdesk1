@@ -1,0 +1,7 @@
+
+{
+  "appId": "com.printdesk.app",
+  "appName": "PrintDesk",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
