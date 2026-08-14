@@ -1,9 +1,0 @@
-
-{
-"name":"PrintDesk",
-"short_name":"PrintDesk",
-"start_url":".",
-"display":"standalone",
-"theme_color":"#111111",
-"background_color":"#111111"
-}
