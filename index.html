@@ -3458,13 +3458,15 @@ function openHistory(id){
         )
         .innerHTML = `
 
-        ${
+       ${
             item.photoUrl
             ? `
                 <img
                     class="history-photo"
                     src="${esc(item.photoUrl)}"
-                    alt="${esc(item.name)}">
+                    alt="${esc(item.name)}"
+                    style="cursor:pointer;"
+                    onclick="openImageModal('${esc(item.photoUrl)}', event)">
             `
             : ''
         }
@@ -4973,7 +4975,31 @@ document.addEventListener(
     }
 );
 
+/* =========================================================
+       FULLSCREEN PHOTO MODAL LOGIC
+    ========================================================= */
+    function openImageModal(url, event) {
+        if (event) event.stopPropagation();
+        const modal = document.getElementById('image-modal');
+        const img = document.getElementById('image-modal-img');
+        if (!modal || !img || !url) return;
+        
+        img.src = url;
+        modal.classList.add('active');
+    }
+
+    function closeImageModal() {
+        const modal = document.getElementById('image-modal');
+        if (modal) modal.classList.remove('active');
+    }
+
 </script>
+<!-- =========================================================
+         FULLSCREEN PHOTO MODAL (LIGHTBOX)
+    ========================================================= -->
+    <div id="image-modal" class="modal" onclick="closeImageModal()">
+        <img id="image-modal-img" src="" alt="Увеличенное фото" style="max-width:95vw; max-height:90vh; object-fit:contain; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.8);">
+    </div>
 
 </body>
 </html>
