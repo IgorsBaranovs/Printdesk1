@@ -495,6 +495,44 @@ header img{
     font-weight:600;
 }
 
+.history-photo-thumb{
+    width:100%;
+    max-height:220px;
+    object-fit:cover;
+    border-radius:10px;
+    margin:0 0 12px;
+    border:1px solid #333;
+    display:block;
+}
+
+.history-photo{
+    width:100%;
+    max-height:420px;
+    object-fit:contain;
+    border-radius:12px;
+    margin:0 0 15px;
+    background:#151515;
+    border:1px solid #333;
+    display:block;
+}
+
+.photo-preview{
+    width:100%;
+    max-height:260px;
+    object-fit:contain;
+    border-radius:10px;
+    background:#151515;
+    border:1px solid #333;
+    margin-top:10px;
+}
+
+.photo-actions{
+    display:flex;
+    gap:8px;
+    margin-top:8px;
+    flex-wrap:wrap;
+}
+
 
 /* =========================================================
    EMPTY STATE
@@ -950,6 +988,27 @@ header img{
                         id="calc-notes"
                         placeholder="Например: печать для клиента...">
                     </textarea>
+
+                </div>
+
+
+                <div class="field">
+
+                    <label>
+                        📷 Фотография работы
+                    </label>
+
+                    <input
+                        id="calc-photo"
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onchange="previewCalcPhoto()">
+
+                    <img
+                        id="calc-photo-preview"
+                        class="photo-preview hidden"
+                        alt="Предпросмотр фотографии">
 
                 </div>
 
@@ -1522,6 +1581,32 @@ header img{
         </div>
 
 
+        <div class="field">
+
+            <label>
+                📷 Фотография работы
+            </label>
+
+            <input
+                id="history-edit-photo"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onchange="previewEditPhoto()">
+
+            <img
+                id="history-edit-photo-preview"
+                class="photo-preview hidden"
+                alt="Фотография работы">
+
+            <div
+                id="history-edit-photo-status"
+                style="color:#888;font-size:13px;margin-top:7px">
+            </div>
+
+        </div>
+
+
         <button
             class="btn"
             onclick="saveHistoryEdit()">
@@ -1569,6 +1654,7 @@ const db =
 
 const ELEC = 0.05;
 const AMORT = 0.10;
+const PHOTO_BUCKET = 'print-photos';
 
 
 /* =========================================================
@@ -2140,11 +2226,45 @@ async function loadData(isRealtime=false){
                         x.color || '',
 
                     notes:
-                        x.notes || ''
+                        x.notes || '',
+
+                    photoPath:
+                        x.photo_path || '',
+
+                    photoUrl:
+                        ''
 
                 };
 
             });
+
+
+    await Promise.all(
+        history.map(async function(item){
+
+            if(!item.photoPath){
+                return;
+            }
+
+            const signed =
+                await db
+                    .storage
+                    .from(PHOTO_BUCKET)
+                    .createSignedUrl(
+                        item.photoPath,
+                        60 * 60 * 24
+                    );
+
+            if(
+                !signed.error &&
+                signed.data
+            ){
+                item.photoUrl =
+                    signed.data.signedUrl || '';
+            }
+
+        })
+    );
 
 
     debug(
@@ -2760,6 +2880,214 @@ function fillSelect(){
 
 
 /* =========================================================
+   PHOTOS
+========================================================= */
+
+function previewCalcPhoto(){
+
+    const input =
+        document.getElementById('calc-photo');
+
+    const preview =
+        document.getElementById('calc-photo-preview');
+
+    if(!input.files || !input.files[0]){
+
+        preview.src = '';
+        preview.classList.add('hidden');
+        return;
+
+    }
+
+    const url =
+        URL.createObjectURL(input.files[0]);
+
+    preview.src = url;
+    preview.classList.remove('hidden');
+
+    preview.onload = function(){
+        URL.revokeObjectURL(url);
+    };
+
+}
+
+
+function previewEditPhoto(){
+
+    const input =
+        document.getElementById('history-edit-photo');
+
+    const preview =
+        document.getElementById('history-edit-photo-preview');
+
+    if(!input.files || !input.files[0]){
+        return;
+    }
+
+    const url =
+        URL.createObjectURL(input.files[0]);
+
+    preview.src = url;
+    preview.classList.remove('hidden');
+
+    preview.onload = function(){
+        URL.revokeObjectURL(url);
+    };
+
+}
+
+
+function compressImage(file, maxSize=1600, quality=0.82){
+
+    return new Promise(function(resolve,reject){
+
+        const reader = new FileReader();
+
+        reader.onload = function(){
+
+            const img = new Image();
+
+            img.onload = function(){
+
+                let width = img.naturalWidth;
+                let height = img.naturalHeight;
+
+                if(width > maxSize || height > maxSize){
+
+                    const scale =
+                        Math.min(
+                            maxSize / width,
+                            maxSize / height
+                        );
+
+                    width = Math.round(width * scale);
+                    height = Math.round(height * scale);
+
+                }
+
+                const canvas =
+                    document.createElement('canvas');
+
+                canvas.width = width;
+                canvas.height = height;
+
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img,0,0,width,height);
+
+                canvas.toBlob(
+                    function(blob){
+                        if(blob){
+                            resolve(blob);
+                        }else{
+                            reject(new Error('Не удалось обработать фотографию.'));
+                        }
+                    },
+                    'image/jpeg',
+                    quality
+                );
+
+            };
+
+            img.onerror = function(){
+                reject(new Error('Не удалось открыть фотографию.'));
+            };
+
+            img.src = reader.result;
+
+        };
+
+        reader.onerror = function(){
+            reject(new Error('Не удалось прочитать файл фотографии.'));
+        };
+
+        reader.readAsDataURL(file);
+
+    });
+}
+
+
+async function uploadHistoryPhoto(file, historyId){
+
+    if(!file){
+        return null;
+    }
+
+    if(!file.type || !file.type.startsWith('image/')){
+        throw new Error('Можно загружать только изображения.');
+    }
+
+    const blob =
+        await compressImage(file);
+
+    const path =
+        currentUser.id + '/' +
+        historyId + '-' +
+        Date.now() +
+        '.jpg';
+
+    const result =
+        await db
+            .storage
+            .from(PHOTO_BUCKET)
+            .upload(
+                path,
+                blob,
+                {
+                    contentType:'image/jpeg',
+                    upsert:false
+                }
+            );
+
+    if(result.error){
+        throw result.error;
+    }
+
+    return path;
+}
+
+
+async function deleteHistoryPhoto(path){
+
+    if(!path){
+        return;
+    }
+
+    const result =
+        await db
+            .storage
+            .from(PHOTO_BUCKET)
+            .remove([path]);
+
+    if(result.error){
+        console.warn(
+            'Не удалось удалить фотографию:',
+            result.error
+        );
+    }
+}
+
+
+function resetCalcPhoto(){
+
+    const input =
+        document.getElementById('calc-photo');
+
+    const preview =
+        document.getElementById('calc-photo-preview');
+
+    if(input){
+        input.value = '';
+    }
+
+    if(preview){
+        preview.src = '';
+        preview.classList.add('hidden');
+    }
+
+}
+
+
+/* =========================================================
    SAVE ORDER
 ========================================================= */
 
@@ -2821,6 +3149,15 @@ async function saveOrder(){
             .getElementById('calc-notes')
             .value
             .trim();
+
+
+    const photoInput =
+        document.getElementById('calc-photo');
+
+    const photoFile =
+        photoInput && photoInput.files
+        ? photoInput.files[0]
+        : null;
 
 
     if(!spool){
@@ -2950,7 +3287,9 @@ async function saveOrder(){
     const historyResult =
         await db
             .from('print_history')
-            .insert(historyRow);
+            .insert(historyRow)
+            .select('id')
+            .single();
 
 
     if(historyResult.error){
@@ -2983,6 +3322,52 @@ async function saveOrder(){
     }
 
 
+    if(photoFile){
+
+        try{
+
+            const photoPath =
+                await uploadHistoryPhoto(
+                    photoFile,
+                    historyResult.data.id
+                );
+
+            const photoUpdate =
+                await db
+                    .from('print_history')
+                    .update({
+                        photo_path:photoPath
+                    })
+                    .eq(
+                        'id',
+                        historyResult.data.id
+                    )
+                    .eq(
+                        'user_id',
+                        currentUser.id
+                    );
+
+            if(photoUpdate.error){
+                throw photoUpdate.error;
+            }
+
+        }catch(error){
+
+            console.error(
+                'Ошибка загрузки фотографии:',
+                error
+            );
+
+            alert(
+                'Запись сохранена, но фотографию не удалось загрузить:\n' +
+                (error.message || error)
+            );
+
+        }
+
+    }
+
+
     document
         .getElementById('model')
         .value =
@@ -2992,6 +3377,9 @@ async function saveOrder(){
     document
         .getElementById('calc-notes')
         .value = '';
+
+
+    resetCalcPhoto();
 
 
     await loadData();
@@ -3071,6 +3459,17 @@ function openHistory(id){
             'history-modal-content'
         )
         .innerHTML = `
+
+        ${
+            item.photoUrl
+            ? `
+                <img
+                    class="history-photo"
+                    src="${esc(item.photoUrl)}"
+                    alt="${esc(item.name)}">
+            `
+            : ''
+        }
 
         <div class="detail-row">
 
@@ -3297,6 +3696,42 @@ function editHistory(id){
             item.notes || '';
 
 
+    const editPhotoInput =
+        document.getElementById(
+            'history-edit-photo'
+        );
+
+    const editPhotoPreview =
+        document.getElementById(
+            'history-edit-photo-preview'
+        );
+
+    const editPhotoStatus =
+        document.getElementById(
+            'history-edit-photo-status'
+        );
+
+    if(editPhotoInput){
+        editPhotoInput.value = '';
+    }
+
+    if(editPhotoPreview){
+        editPhotoPreview.src =
+            item.photoUrl || '';
+        editPhotoPreview.classList.toggle(
+            'hidden',
+            !item.photoUrl
+        );
+    }
+
+    if(editPhotoStatus){
+        editPhotoStatus.textContent =
+            item.photoUrl
+            ? 'Выберите новое фото, чтобы заменить текущее.'
+            : 'Фото пока нет.';
+    }
+
+
     document
         .getElementById(
             'history-edit-modal'
@@ -3409,6 +3844,17 @@ async function saveHistoryEdit(){
             )
             .value
             .trim();
+
+
+    const editPhotoInput =
+        document.getElementById(
+            'history-edit-photo'
+        );
+
+    const newPhotoFile =
+        editPhotoInput && editPhotoInput.files
+        ? editPhotoInput.files[0]
+        : null;
 
 
     if(newWeight <= 0){
@@ -3629,6 +4075,56 @@ async function saveHistoryEdit(){
     }
 
 
+    if(newPhotoFile){
+
+        try{
+
+            const newPhotoPath =
+                await uploadHistoryPhoto(
+                    newPhotoFile,
+                    id
+                );
+
+            const photoUpdate =
+                await db
+                    .from('print_history')
+                    .update({
+                        photo_path:newPhotoPath
+                    })
+                    .eq(
+                        'id',
+                        id
+                    )
+                    .eq(
+                        'user_id',
+                        currentUser.id
+                    );
+
+            if(photoUpdate.error){
+                throw photoUpdate.error;
+            }
+
+            await deleteHistoryPhoto(
+                item.photoPath
+            );
+
+        }catch(error){
+
+            console.error(
+                'Ошибка замены фотографии:',
+                error
+            );
+
+            alert(
+                'Данные сохранены, но фотографию не удалось заменить:\n' +
+                (error.message || error)
+            );
+
+        }
+
+    }
+
+
     closeHistoryEditModal();
 
     await loadData();
@@ -3692,6 +4188,11 @@ async function deleteHistory(id){
         return;
 
     }
+
+
+    await deleteHistoryPhoto(
+        item.photoPath
+    );
 
 
     if(
@@ -3775,7 +4276,7 @@ function exportHistoryCSV(){
 
 
     csvContent +=
-        "ID;Дата;Модель;Вес (г);Себестоимость (€);Катушка;Заметки\n";
+        "ID;Дата;Модель;Вес (г);Себестоимость (€);Катушка;Фото;Заметки\n";
 
 
     history.forEach(function(h){
@@ -3795,6 +4296,8 @@ function exportHistoryCSV(){
 
             `"${(h.spoolName || '')
                 .replace(/"/g,'""')}"`,
+
+            h.photoPath ? 'Да' : 'Нет',
 
             `"${(h.notes || '')
                 .replace(/"/g,'""')}"`
@@ -4311,6 +4814,17 @@ function update(){
 
                         </button>
 
+
+                        ${
+                            h.photoUrl
+                            ? `
+                                <img
+                                    class="history-photo-thumb"
+                                    src="${esc(h.photoUrl)}"
+                                    alt="${esc(h.name)}">
+                            `
+                            : ''
+                        }
 
                         <div class="history-title">
 
