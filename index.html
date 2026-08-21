@@ -4813,17 +4813,6 @@ function update(){
                         </button>
 
 
-                        ${
-                            h.photoUrl
-                            ? `
-                                <img
-                                    class="history-photo-thumb"
-                                    src="${esc(h.photoUrl)}"
-                                    alt="${esc(h.name)}">
-                            `
-                            : ''
-                        }
-
                         <div class="history-title">
 
                             ${esc(h.name)}
