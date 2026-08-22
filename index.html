@@ -237,10 +237,12 @@
                 <label>Время печати</label>
                 <div class="time-inputs">
                     <div>
-                        <input type="number" id="print-hours" placeholder="Часы" min="0" value="0">
+                        <label>Часы</label>
+                        <input type="number" id="print-hours" placeholder="0" min="0" value="0">
                     </div>
                     <div>
-                        <input type="number" id="print-minutes" placeholder="Минуты" min="0" max="59" value="0">
+                        <label>Минуты</label>
+                        <input type="number" id="print-minutes" placeholder="0" min="0" max="59" value="0">
                     </div>
                 </div>
             </div>
@@ -300,26 +302,24 @@
     </div>
 
     <script>
-        // Инициализация Supabase с вашими ключами
         const SUPABASE_URL = 'https://fxydodwbgixtlcptarro.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_SI7sEQyG02PQO3r_IRrBwA_OeIn3fU-';
         
-        // Используем supabaseClient, чтобы предотвратить конфликт названий
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         let currentUser = null;
         let spools = [];
         let history = [];
 
-        // Вспомогательные функции
         function esc(str) {
             if (!str) return '';
             return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
+        // Форматирование времени печати
         function formatPrintTime(hours, minutes) {
-            const h = parseInt(hours) || 0;
-            const m = parseInt(minutes) || 0;
+            const h = parseInt(hours, 10) || 0;
+            const m = parseInt(minutes, 10) || 0;
             if (h === 0 && m === 0) return 'Не указано';
             
             let result = '';
@@ -333,9 +333,7 @@
             const email = document.getElementById('auth-email').value;
             const password = document.getElementById('auth-password').value;
             
-            if (!email || !password) {
-                return alert('Пожалуйста, введите Email и пароль');
-            }
+            if (!email || !password) return alert('Введите email и пароль');
 
             const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
             
@@ -368,14 +366,12 @@
 
         // Загрузка данных
         async function loadData() {
-            // Загрузка катушек
             const { data: spoolsData } = await supabaseClient
                 .from('spools')
                 .select('*')
                 .eq('user_id', currentUser.id);
             spools = spoolsData || [];
 
-            // Загрузка истории
             const { data: historyData } = await supabaseClient
                 .from('print_history')
                 .select('*')
@@ -397,14 +393,13 @@
                 return 0;
             }
 
-            const pricePerGram = spool.price / spool.initial_weight; // Расчет от изначального веса
+            const pricePerGram = spool.price / spool.initial_weight;
             const cost = weight * pricePerGram;
             
             document.getElementById('calc-cost').innerText = cost.toFixed(2) + ' €';
             return cost;
         }
 
-        // Обновление UI
         function updateUI() {
             updateSummary();
             updateSpoolsList();
@@ -412,7 +407,6 @@
             updateSpoolSelect();
         }
 
-        /* 1. Главная (Summary) */
         function updateSummary() {
             const summary = document.getElementById('summary');
             if (!spools.length) {
@@ -436,7 +430,6 @@
             }
         }
 
-        /* 2. Катушки */
         function updateSpoolSelect() {
             const select = document.getElementById('spool-select');
             select.innerHTML = spools.map(s => `
@@ -488,40 +481,46 @@
             }
         }
 
-        /* 3. Сохранение истории */
+        /* ИСПРАВЛЕННОЕ СОХРАНЕНИЕ С ВРЕМЕНЕМ */
         async function saveOrder() {
             const name = document.getElementById('print-name').value;
             const spoolId = document.getElementById('spool-select').value;
             const weight = parseFloat(document.getElementById('print-weight').value) || 0;
-            const hours = parseInt(document.getElementById('print-hours').value) || 0;
-            const minutes = parseInt(document.getElementById('print-minutes').value) || 0;
+            
+            // Явное чтение чисел из инпутов
+            const hours = parseInt(document.getElementById('print-hours').value, 10) || 0;
+            const minutes = parseInt(document.getElementById('print-minutes').value, 10) || 0;
+            
             const cost = calculateCost();
 
             if (!name || !spoolId || weight <= 0) return alert('Заполните корректно название и вес!');
 
             const spool = spools.find(s => s.id == spoolId);
 
-            // Сохраняем историю
+            // Сохраняем в таблицу
             const { data, error } = await supabaseClient.from('print_history').insert([{
                 user_id: currentUser.id,
-                name,
+                name: name,
                 spool_name: spool ? spool.name : 'Неизвестно',
-                weight,
-                cost,
+                weight: weight,
+                cost: cost,
                 print_hours: hours,
                 print_minutes: minutes,
                 date: new Date().toLocaleDateString('ru-RU')
             }]).select();
 
-            if (error) return alert('Ошибка сохранения: ' + error.message);
+            if (error) {
+                alert('Ошибка сохранения: ' + error.message);
+                return;
+            }
 
-            // Списываем вес с катушки
+            // Списываем вес
             if (spool) {
                 const newWeight = Math.max(0, spool.weight - weight);
                 await supabaseClient.from('spools').update({ weight: newWeight }).eq('id', spool.id);
             }
 
-            // Очистка полей
+            // Очищаем форму
             document.getElementById('print-name').value = '';
             document.getElementById('print-weight').value = '';
             document.getElementById('print-hours').value = '0';
@@ -530,7 +529,7 @@
             loadData();
         }
 
-        /* 4. Список истории */
+        /* ИСПРАВЛЕННЫЙ СПИСОК ИСТОРИИ С ОТОБРАЖЕНИЕМ ВРЕМЕНИ В КАРТОЧКАХ */
         function updateHistoryList() {
             const list = document.getElementById('history-list');
             if (!history.length) {
@@ -538,21 +537,22 @@
                 return;
             }
 
-            list.innerHTML = history.map(h => `
+            list.innerHTML = history.map(h => {
+                const timeStr = formatPrintTime(h.print_hours, h.print_minutes);
+                return `
                 <div class="history-item" onclick="openHistoryModal('${h.id}')">
                     <div>
                         <b>${esc(h.name)}</b>
-                        <div style="font-size:12px; color:var(--text-secondary);">${h.date}</div>
+                        <div style="font-size:12px; color:var(--text-secondary);">${h.date} • ⏱ ${timeStr}</div>
                     </div>
                     <div style="text-align:right;">
-                        <div><b>${h.cost.toFixed(2)} €</b></div>
+                        <div><b>${Number(h.cost).toFixed(2)} €</b></div>
                         <div style="font-size:12px; color:var(--text-secondary);">${h.weight}г</div>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
-        /* 5. Карточка истории (Модальное окно) */
         function openHistoryModal(id) {
             const item = history.find(h => h.id == id);
             if (!item) return;
@@ -564,7 +564,7 @@
                 <p><strong>Дата:</strong> ${item.date}</p>
                 <p><strong>Катушка:</strong> ${esc(item.spool_name)}</p>
                 <p><strong>Расход пластика:</strong> ${item.weight} г</p>
-                <p><strong>Себестоимость:</strong> ${item.cost.toFixed(2)} €</p>
+                <p><strong>Себестоимость:</strong> ${Number(item.cost).toFixed(2)} €</p>
                 <p style="margin-top: 8px; font-size: 16px;">
                     <strong>⏱ Время печати:</strong> 
                     <span style="color: var(--accent-color); font-weight: bold;">${printTimeFormatted}</span>
