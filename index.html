@@ -969,15 +969,41 @@ header img{
                 <div class="field">
 
                     <label>
-                        Время печати (ч)
+                        Время печати
                     </label>
 
-                    <input
-                        id="calc-time"
-                        type="number"
-                        value="4"
-                        step="0.1"
-                        oninput="calculate()">
+                    <div style="display:flex; gap:10px;">
+
+                        <div style="flex:1;">
+
+                            <input
+                                id="calc-hours"
+                                type="number"
+                                min="0"
+                                value="4"
+                                placeholder="Часы"
+                                oninput="calculate()">
+
+                            <span style="font-size:12px; color:#888;">Часы</span>
+
+                        </div>
+
+                        <div style="flex:1;">
+
+                            <input
+                                id="calc-minutes"
+                                type="number"
+                                min="0"
+                                max="59"
+                                value="0"
+                                placeholder="Мин"
+                                oninput="calculate()">
+
+                            <span style="font-size:12px; color:#888;">Минуты</span>
+
+                        </div>
+
+                    </div>
 
                 </div>
 
@@ -2230,6 +2256,9 @@ async function loadData(isRealtime=false){
                     notes:
                         x.notes || '',
 
+                    printTime:
+                        x.print_time || '',
+
                     photoPath:
                         x.photo_path || '',
 
@@ -2769,12 +2798,21 @@ function calculate(){
         ) || 0;
 
 
-    const time =
+    const hours =
         Number(
             document
-                .getElementById('calc-time')
+                .getElementById('calc-hours')
                 .value
         ) || 0;
+
+    const minutes =
+        Number(
+            document
+                .getElementById('calc-minutes')
+                .value
+        ) || 0;
+
+    const time = hours + (minutes / 60);
 
 
     const materialCost =
@@ -3130,12 +3168,23 @@ async function saveOrder(){
         ) || 0;
 
 
-    const time =
+    const hours =
         Number(
             document
-                .getElementById('calc-time')
+                .getElementById('calc-hours')
                 .value
         ) || 0;
+
+    const minutes =
+        Number(
+            document
+                .getElementById('calc-minutes')
+                .value
+        ) || 0;
+
+    const time = hours + (minutes / 60);
+
+    const printTimeStr = `${hours} ч ${minutes} мин`;
 
 
     const name =
@@ -3279,6 +3328,9 @@ async function saveOrder(){
 
         notes:
             notes || null,
+
+        print_time:
+            printTimeStr,
 
         user_id:
             currentUser.id
@@ -3510,6 +3562,25 @@ function openHistory(id){
             </span>
 
         </div>
+
+
+        ${
+            item.printTime
+            ? `
+                <div class="detail-row">
+
+                    <span class="detail-label">
+                        Время печати
+                    </span>
+
+                    <span class="detail-value">
+                        ⏱️ ${esc(item.printTime)}
+                    </span>
+
+                </div>
+            `
+            : ''
+        }
 
 
         <div class="detail-row">
